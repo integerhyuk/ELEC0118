@@ -1,0 +1,9 @@
+torch
+torchvision
+torchtext
+torchaudio
+PyYAML
+librosa
+pandas
+transformers
+TextGrid
