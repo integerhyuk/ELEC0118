@@ -1,12 +1,20 @@
 import re
+from typing import Optional
+
 import textgrid
 import torch
 from torch import nn
 
 
 from transformers import (Wav2Vec2CTCTokenizer,
-    Wav2Vec2FeatureExtractor,
-    Wav2Vec2Processor)
+                          Wav2Vec2FeatureExtractor,
+                          Wav2Vec2Processor,
+                          WhisperFeatureExtractor,
+                          WhisperTokenizer,
+                          WhisperProcessor)
+
+WHISPER = "whisper"
+WAV2VEC = "wav2vec"
 
 def parse_Interval(IntervalObject):
     start_time = ""
@@ -52,23 +60,42 @@ def parse_textgrid(filename):
         result.append(d)
     return result
 
-def create_processor(model_name_or_path,vocab_file= None):
-    feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
-        model_name_or_path)
+def create_processor(model_name_or_path,vocab_file= None, type=WAV2VEC):
+    if type == WAV2VEC:
+        feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
+            model_name_or_path)
+    else:
+        feature_extractor = WhisperFeatureExtractor.from_pretrained(
+            model_name_or_path)
 
     if vocab_file:
-        tokenizer = Wav2Vec2CTCTokenizer(
+        if type == WAV2VEC:
+            tokenizer = Wav2Vec2CTCTokenizer(
+                    vocab_file,
+                    do_lower_case=False,
+                    word_delimiter_token="|",
+                )
+        else:
+            tokenizer = WhisperTokenizer(
                 vocab_file,
                 do_lower_case=False,
-                word_delimiter_token="|",
             )
     else:
-        tokenizer = Wav2Vec2CTCTokenizer.from_pretrained(
+        if type == WAV2VEC:
+            tokenizer = Wav2Vec2CTCTokenizer.from_pretrained(
+                    model_name_or_path,
+                    do_lower_case=False,
+                    word_delimiter_token="|",
+                )
+        else:
+            tokenizer = WhisperTokenizer.from_pretrained(
                 model_name_or_path,
                 do_lower_case=False,
-                word_delimiter_token="|",
             )
-    return Wav2Vec2Processor(feature_extractor, tokenizer)
+    if type == WAV2VEC:
+        return Wav2Vec2Processor(feature_extractor, tokenizer)
+    else:
+        return WhisperProcessor(feature_extractor, tokenizer)
 
 
 def prepare_example(text,vocabulary_text_cleaner):
@@ -79,7 +106,7 @@ def prepare_example(text,vocabulary_text_cleaner):
     except:
         text = "NULL"
     updated_text = text
-    updated_text = vocabulary_text_cleaner.sub("", updated_text)
+    # updated_text = vocabulary_text_cleaner.sub("", updated_text)
     if updated_text != text:
         return re.sub(' +', ' ', updated_text).strip()
     else:

@@ -15,7 +15,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from tkinter import NONE
+# from tkinter import NONE
 from functools import reduce
 from mmi_module import MMI_Model
 
@@ -26,7 +26,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from transformers.models.roberta.modeling_roberta import RobertaEncoder
-from transformers import AutoTokenizer, BertConfig, AutoConfig, Wav2Vec2Model, RobertaModel
+from transformers import AutoTokenizer, BertConfig, AutoConfig, Wav2Vec2Model, RobertaModel, WhisperTokenizer
 
 from infonce_loss import InfoNCE, SupConLoss
 from utils import create_processor, prepare_example, text_preprocessing
@@ -34,13 +34,16 @@ from utils import create_processor, prepare_example, text_preprocessing
 warnings.filterwarnings("ignore")
 
 tokenizer = AutoTokenizer.from_pretrained("roberta-base")
-audio_processor = create_processor("facebook/wav2vec2-base")
+# audio_processor = create_processor("facebook/wav2vec2-base")
+audio_processor = create_processor("openai/whisper-large", type="whisper")
+audio_tokenizer = AutoTokenizer.from_pretrained("openai/whisper-large")
+
 
 vocabulary_chars_str = "".join(t for t in audio_processor.tokenizer.get_vocab().keys() if len(t) == 1)
-vocabulary_text_cleaner = re.compile(  # remove characters not in vocabulary
-        f"[^\s{re.escape(vocabulary_chars_str)}]",  # allow space in addition to chars in vocabulary
-        flags=re.IGNORECASE if audio_processor.tokenizer.do_lower_case else 0,
-    )
+# vocabulary_text_cleaner = re.compile(  # remove characters not in vocabulary
+#         f"[^\s{re.escape(vocabulary_chars_str)}]",  # allow space in addition to chars in vocabulary
+#         flags=re.IGNORECASE if audio_processor.tokenizer.do_lower_case else 0,
+#     )
 
 def evaluate_metrics(pred_label, true_label):
     pred_label = np.array(pred_label)
@@ -120,13 +123,13 @@ class IEMOCAPDataset(object):
         augmented_text = text_preprocessing(augmented_text)
 
         #------------- clean asr target text -------------#
-        asr_text = prepare_example(asr_text,vocabulary_text_cleaner)
+        # asr_text = prepare_example(asr_text,vocabulary_text_cleaner)
 
         #------------- labels -------------#
         label = label2idx(label)
 
         #------------- wrap up all the output info the dict format -------------#
-        return {'audio_input':wave,'text_input':bert_text,'audio_length':audio_length,
+        return {'audio_input':wave,'sampling_rate':sr,'text_input':bert_text,'audio_length':audio_length,
                 'text_length':text_length,'label':label,'audio_name':audio_name,'asr_target':asr_text, 'bert_output':tokenized_word,
                 'augmented_text_input': augmented_text, 'augmented_audio_input': augmented_wav, 'augmented_audio_length': augmented_audio_length,
                 'bert_output_augment': tokenized_word_augment}
@@ -135,6 +138,7 @@ class IEMOCAPDataset(object):
 def collate(sample_list):
 
     batch_audio = [x['audio_input'] for x in sample_list]
+    sampling_rate = [x['sampling_rate'] for x in sample_list]
     batch_augmented_audio = [x['augmented_audio_input'] for x in sample_list]
     batch_bert_text = [x['text_input'] for x in sample_list]
     batch_augmented_text = [x['augmented_text_input'] for x in sample_list]
@@ -142,39 +146,22 @@ def collate(sample_list):
 
     #----------------tokenize and pad the audio----------------------#
 
-    batch_audio = audio_processor(batch_audio, sampling_rate=16000).input_values
+    # batch_audio = audio_processor(batch_audio, sampling_rate=16000).input_values
+    batch_audio = audio_processor(batch_audio, sampling_rate=16000).input_features
 
-    batch_audio = [{"input_values": audio} for audio in batch_audio]
-    batch_audio = audio_processor.pad(
-            batch_audio,
-            padding=True,
-            return_tensors="pt",
-        )
+    batch_audio = [{"input_features": audio} for audio in batch_audio]
+    batch_audio = audio_processor.feature_extractor.pad(batch_audio, return_tensors="pt")
 
-    with audio_processor.as_target_processor():
-        label_features = audio_processor(batch_asr_text).input_ids
-
-    label_features = [{"input_ids": labels} for labels in label_features]
-
-    with audio_processor.as_target_processor():
-        labels_batch = audio_processor.pad(
-                label_features,
-                padding=True,
-                return_tensors="pt",
-            )
+    label_features = audio_tokenizer(batch_asr_text)
+    labels_batch = audio_processor.tokenizer.pad(label_features, return_tensors="pt")
 
     ctc_labels = labels_batch["input_ids"].masked_fill(labels_batch.attention_mask.ne(1), -100)
-
     #-------------tokenize and pad augmented audio--------------------#
 
-    batch_augmented_audio = audio_processor(batch_augmented_audio, sampling_rate=16000).input_values
+    batch_augmented_audio = audio_processor(batch_augmented_audio, sampling_rate=16000).input_features
 
-    batch_augmented_audio = [{"input_values": audio} for audio in batch_augmented_audio]
-    batch_augmented_audio = audio_processor.pad(
-            batch_augmented_audio,
-            padding=True,
-            return_tensors="pt",
-        )
+    batch_augmented_audio = [{"input_features": audio} for audio in batch_augmented_audio]
+    batch_augmented_audio = audio_processor.feature_extractor.pad(batch_augmented_audio, return_tensors="pt")
 
     #----------------tokenize and pad the text----------------------#
     batch_text = tokenizer(batch_bert_text, padding=True, truncation=True, return_tensors="pt")
@@ -214,8 +201,9 @@ def collate(sample_list):
 
         target_labels.append(torch.LongTensor(temp_labels[:]))
 
-    return (batch_text_inputids,batch_text_attention,text_length,bert_output),(batch_audio,audio_length),(ctc_labels,batch_label, target_labels), (bert_output_augment,batch_augmented_text_attention),\
-        (batch_augmented_audio,augmented_audio_length)
+    return ((batch_text_inputids,batch_text_attention,text_length,bert_output),(batch_audio,audio_length),
+            (ctc_labels,batch_label, target_labels), (bert_output_augment,batch_augmented_text_attention),\
+        (batch_augmented_audio,augmented_audio_length))
 
 class ActivateFun(nn.Module):
     def __init__(self, activate_fun):
@@ -413,8 +401,8 @@ def run(args, config, train_data, valid_data, session):
         time.sleep(2) # avoid the deadlock during the switch between the different dataloaders
         progress = tqdm(train_loader, desc='Epoch {:0>3d}'.format(epoch))
         for bert_input, audio_input, label_input, bert_augmented_input, audio_augmented_input in progress:
-            attention_mask, text_length, bert_output =  bert_input[1].cuda(),bert_input[2].cuda(),bert_input[3].cuda()
-            acoustic_input, acoustic_length = audio_input[0]['input_values'].cuda(),audio_input[1].cuda()
+            attention_mask, text_length, bert_output = bert_input[1].cuda(),bert_input[2].cuda(),bert_input[3].cuda()
+            acoustic_input, acoustic_length = audio_input[0]['input_features'].cuda(),audio_input[1].cuda()
             ctc_labels, emotion_labels = label_input[0].cuda(),label_input[1].cuda()
             augmented_bert_output, augmented_attention_mask = bert_augmented_input[0].cuda(),bert_augmented_input[1].cuda()
             augmented_acoustic_input, augmented_acoustic_length = audio_augmented_input[0]['input_values'].cuda(),audio_augmented_input[1].cuda()
@@ -497,15 +485,15 @@ def run(args, config, train_data, valid_data, session):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True, help='configuration file path')
-    parser.add_argument("--bert_config", type=str, required=True, help='configuration file path for BERT')
+    parser.add_argument("--config", type=str, help='configuration file path', default="/home/image/MMER/configs/iemocap-ours.yaml")
+    parser.add_argument("--bert_config", type=str, help='configuration file path for BERT', default="/home/image/MMER/configs/config.json")
     parser.add_argument("--epochs", type=int, default=100, help="training epoches")
-    parser.add_argument("--csv_path", type=str, required=True, help="path of csv")
-    parser.add_argument("--save_path", type=str, default="./", help="report or ckpt save path")
-    parser.add_argument("--data_path_audio", type=str, required=True, help="path to raw audio wav files")
-    parser.add_argument("--data_path_roberta", type=str, required=True, help="path to roberta embeddings for text")
-    parser.add_argument("--data_path_audio_augmented", type=str, required=True, help="path to augmented audio wav files")
-    parser.add_argument("--data_path_roberta_augmented", type=str, required=True, help="path to augmented roberta embeddings for text")
+    parser.add_argument("--csv_path", type=str, help="path of csv", default="/home/image/MMER/data/iemocap.csv")
+    parser.add_argument("--save_path", type=str, default="/home/image/MMER/output/", help="report or ckpt save path")
+    parser.add_argument("--data_path_audio", type=str, help="path to raw audio wav files", default="/home/image/MMER/data/iemocap/")
+    parser.add_argument("--data_path_roberta", type=str, help="path to roberta embeddings for text", default="/home/image/MMER/data/roberta/")
+    parser.add_argument("--data_path_audio_augmented", type=str, help="path to augmented audio wav files", default="/home/image/MMER/data/iemocap_augmented/")
+    parser.add_argument("--data_path_roberta_augmented", type=str, help="path to augmented roberta embeddings for text", default="/home/image/MMER/data/roberta_augmented/")
     parser.add_argument("--learning_rate", type=float, default=5e-5, help="learning rate for the specific run")
     parser.add_argument("--batch_size", type=int, default=2, help="batch size")
     parser.add_argument("--accum_grad", type=int, default=4, help="gradient accumulation steps")

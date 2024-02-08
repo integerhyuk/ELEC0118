@@ -41,6 +41,7 @@ from torch.autograd import Variable
 from transformers import BertModel, Wav2Vec2Model, WavLMModel, HubertModel
 from utils import Conv2dSubsampling, downsample, create_mask, Conv2dSubsampling2
 # from fairseq.models.wav2vec.wav2vec2 import TransformerEncoder, TransformerSentenceEncoderLayer
+from src_origin.config import LEARNING_RATE, WAV2VEC_MODEL, BATCH_SIZE, EPOCH, ACCUM_GRAD
 
 args = {
     "input_feat": 1024,
@@ -1389,7 +1390,7 @@ class MMI_Model(nn.Module):
         super(MMI_Model, self).__init__()
         self.num_labels = num_labels
         # self.bert = BertModel.from_pretrained('bert-base-cased')
-        self.wav2vec2 = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
+        self.wav2vec2 = Wav2Vec2Model.from_pretrained(WAV2VEC_MODEL,output_hidden_states=True,return_dict=True,apply_spec_augment=False)
         # self.wav2vec2 = WavLMModel.from_pretrained("microsoft/wavlm-base-plus-sv",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
         # self.wav2vec2 = HubertModel.from_pretrained("facebook/hubert-base-ls960",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
         self.wav2vec2.feature_extractor._freeze_parameters()
@@ -1766,7 +1767,7 @@ class MMI_Model_SingleLoss(nn.Module):
         super(MMI_Model_SingleLoss, self).__init__()
         self.num_labels = num_labels
         # self.bert = BertModel.from_pretrained('bert-base-cased')
-        self.wav2vec2 = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
+        self.wav2vec2 = Wav2Vec2Model.from_pretrained(WAV2VEC_MODEL,output_hidden_states=True,return_dict=True,apply_spec_augment=False)
         self.wav2vec2.feature_extractor._freeze_parameters()
         #self.trans_matrix = torch.zeros(num_labels, auxnum_labels)
         self.self_attention = BertSelfEncoder(config)
@@ -1949,7 +1950,7 @@ class MMI_Model_LateFusion(nn.Module):
         super(MMI_Model_LateFusion, self).__init__()
         self.num_labels = num_labels
         # self.bert = BertModel.from_pretrained('bert-base-cased')
-        self.wav2vec2 = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
+        self.wav2vec2 = Wav2Vec2Model.from_pretrained(WAV2VEC_MODEL,output_hidden_states=True,return_dict=True,apply_spec_augment=False)
         # self.wav2vec2 = WavLMModel.from_pretrained("microsoft/wavlm-base-plus-sv",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
         self.wav2vec2.feature_extractor._freeze_parameters()
         #self.trans_matrix = torch.zeros(num_labels, auxnum_labels)

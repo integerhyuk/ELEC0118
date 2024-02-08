@@ -19,6 +19,7 @@ from tqdm import tqdm
 from functools import reduce
 from mmi_module import MMI_Model
 
+import wandb
 import torch
 import torchaudio
 import torch.nn as nn
@@ -29,7 +30,25 @@ from transformers.models.roberta.modeling_roberta import RobertaEncoder
 from transformers import AutoTokenizer, BertConfig, AutoConfig, Wav2Vec2Model, RobertaModel
 
 from infonce_loss import InfoNCE, SupConLoss
+from src_origin.config import LEARNING_RATE, WAV2VEC_MODEL, BATCH_SIZE, EPOCH, ACCUM_GRAD
 from utils import create_processor, prepare_example, text_preprocessing
+
+
+
+# start a new wandb run to track this script
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="MMER",
+
+    # track hyperparameters and run metadata
+    config={
+        "learning_rate": LEARNING_RATE,
+        "wav2vec": WAV2VEC_MODEL,
+        "batch_size": BATCH_SIZE,
+        "epochs": EPOCH,
+        "ACCUM_GRAD": ACCUM_GRAD,
+    }
+)
 
 warnings.filterwarnings("ignore")
 
@@ -447,7 +466,12 @@ def run(args, config, train_data, valid_data, session):
             cl_self_loss = torch.mean(torch.tensor(epoch_train_cl_self_loss)).cpu().detach().numpy()
             cl_loss = torch.mean(torch.tensor(epoch_train_cl_loss)).cpu().detach().numpy()
 
-            progress.set_description("Epoch {:0>3d} - Loss {:.4f} - CLS_Loss {:.4f} - CTC_Loss {:.4f} - CL Loss {:.4f}".format(epoch, acc_train_loss, cls_loss, ctc_loss, cl_self_loss))
+            progress.set_description("Epoch {:0>3d} - Loss {:.4f} - CLS_Loss {:.4f} - CTC_Loss {:.4f} - CL Loss {:.4f}"
+                                     .format(epoch, acc_train_loss, cls_loss, ctc_loss, cl_self_loss))
+            wandb.log({"train_loss": acc_train_loss,
+                       "train_cls_loss": loss,
+                       "train_ctc_loss": ctc_loss,
+                       "train_cl_loss": cl_self_loss})
 
         del progress
         model.eval()
@@ -482,6 +506,8 @@ def run(args, config, train_data, valid_data, session):
         print('Valid Metric: {} - Train Loss: {:.3f}'.format(
             ' - '.join(['{}: {:.3f}'.format(key, value) for key, value in report_metric.items()]),
             epoch_train_loss))
+
+        wandb.log(report_metric)
         stats = dict(epoch=epoch, key_accuracy = key_metric, report_accuracy = report_metric)
         print(json.dumps(stats), file=stats_file)
 
@@ -504,16 +530,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, help='configuration file path', default="/home/image/MMER/configs/iemocap-ours.yaml")
     parser.add_argument("--bert_config", type=str, help='configuration file path for BERT', default="/home/image/MMER/configs/config.json")
-    parser.add_argument("--epochs", type=int, default=100, help="training epoches")
+    parser.add_argument("--epochs", type=int, default=EPOCH, help="training epoches")
     parser.add_argument("--csv_path", type=str, help="path of csv", default="/home/image/MMER/data/iemocap.csv")
     parser.add_argument("--save_path", type=str, default="/home/image/MMER/output/", help="report or ckpt save path")
     parser.add_argument("--data_path_audio", type=str, help="path to raw audio wav files", default="/home/image/MMER/data/iemocap/")
     parser.add_argument("--data_path_roberta", type=str, help="path to roberta embeddings for text", default="/home/image/MMER/data/roberta/")
     parser.add_argument("--data_path_audio_augmented", type=str, help="path to augmented audio wav files", default="/home/image/MMER/data/iemocap_augmented/")
     parser.add_argument("--data_path_roberta_augmented", type=str, help="path to augmented roberta embeddings for text", default="/home/image/MMER/data/roberta_augmented/")
-    parser.add_argument("--learning_rate", type=float, default=5e-5, help="learning rate for the specific run")
-    parser.add_argument("--batch_size", type=int, default=2, help="batch size")
-    parser.add_argument("--accum_grad", type=int, default=4, help="gradient accumulation steps")
+    parser.add_argument("--learning_rate", type=float, default=LEARNING_RATE, help="learning rate for the specific run")
+    parser.add_argument("--batch_size", type=int, default=BATCH_SIZE, help="batch size")
+    parser.add_argument("--accum_grad", type=int, default=ACCUM_GRAD, help="gradient accumulation steps")
     parser.add_argument("--lambda_value", type=float, default=0.1, help="lambda_value to weight the auxiliary losses")
     parser.add_argument("--num_workers", type=int, default=4, help="number of workers in data loader")
 

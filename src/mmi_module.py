@@ -38,7 +38,7 @@ from torch.nn import CrossEntropyLoss
 
 import torch.nn.functional as F
 from torch.autograd import Variable
-from transformers import BertModel, Wav2Vec2Model, WavLMModel, HubertModel
+from transformers import BertModel, Wav2Vec2Model, WavLMModel, HubertModel, WhisperModel
 from utils import Conv2dSubsampling, downsample, create_mask, Conv2dSubsampling2
 # from fairseq.models.wav2vec.wav2vec2 import TransformerEncoder, TransformerSentenceEncoderLayer
 
@@ -1389,10 +1389,11 @@ class MMI_Model(nn.Module):
         super(MMI_Model, self).__init__()
         self.num_labels = num_labels
         # self.bert = BertModel.from_pretrained('bert-base-cased')
-        self.wav2vec2 = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
+        self.whisper = WhisperModel.from_pretrained("openai/whisper-large")
+        # self.wav2vec2 = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
         # self.wav2vec2 = WavLMModel.from_pretrained("microsoft/wavlm-base-plus-sv",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
         # self.wav2vec2 = HubertModel.from_pretrained("facebook/hubert-base-ls960",output_hidden_states=True,return_dict=True,apply_spec_augment=False)
-        self.wav2vec2.feature_extractor._freeze_parameters()
+        # self.wav2vec2.feature_extractor._freeze_parameters()
         #self.trans_matrix = torch.zeros(num_labels, auxnum_labels)
         # self.self_attention = BertSelfEncoder(config)
         self.self_attention_v2 = BertSelfEncoder(config)
