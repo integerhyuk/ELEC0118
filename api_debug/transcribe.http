@@ -1,0 +1,9 @@
+POST http://0.0.0.0:8000/transcribe/
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="example.wav"
+Content-Type: audio/wav
+
+< /home/image/MMER/data/iemocap/Ses01F_impro01_F000.wav
+--WebAppBoundary--

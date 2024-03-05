@@ -292,4 +292,4 @@ data_prep
 venv
 output
 .idea
-*.swp
+wandb

@@ -7,3 +7,10 @@ librosa
 pandas
 transformers
 TextGrid
+sentencepiece
+fastapi
+uvicorn
+protobuf
+datasets
+accelerate
+python-multipart
