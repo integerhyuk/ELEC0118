@@ -12,24 +12,17 @@ parser.add_argument('--batch_size','-bs', type=int, default=16, help='batch size
 args = parser.parse_args()
 
 
-from cgitb import text
 import re
 import os
 import time
-import sys
-import json
-from tkinter import NONE
-# from sqlalchemy import true
+
 import yaml
-import pickle
-import argparse
+
 import numpy as np
 from tqdm import tqdm
 import librosa
 import pandas as pd
-from functools import reduce
-import random
-import copy
+
 import math
 
 import torch
@@ -39,9 +32,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer, BertConfig, AutoConfig
-from transformers import  Wav2Vec2Model, RobertaModel
-from transformers.models.roberta.modeling_roberta import RobertaEncoder
-from infonce_loss import InfoNCE, SupConLoss
+
 from mmi_module import MMI_Model
 
 

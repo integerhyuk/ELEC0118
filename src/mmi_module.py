@@ -36,7 +36,7 @@ from transformers import BertModel, Wav2Vec2Model, WavLMModel, HubertModel, Bert
 from transformers.models.bert.modeling_bert import BertIntermediate, BertOutput, BertSelfOutput
 
 from utils import create_mask
-from src_origin.config import LEARNING_RATE, WAV2VEC_MODEL, BATCH_SIZE, EPOCH, ACCUM_GRAD
+from src.config import LEARNING_RATE, WAV2VEC_MODEL, BATCH_SIZE, EPOCH, ACCUM_GRAD
 
 args = {
     "input_feat": 1024,
@@ -373,7 +373,7 @@ class MMI_Model(nn.Module):
         #-----------------------------------------------------------------------------------------------------------#
 
         audio_output_dropout = self.dropout_audio_input(audio_output_wav2vec2)
-        logits_ctc = self.ctc_linear(audio_output_dropout)
+        # logits_ctc = self.ctc_linear(audio_output_dropout)
 
         extended_txt_mask = bert_attention_mask.unsqueeze(1).unsqueeze(2)
         extended_txt_mask = extended_txt_mask.to(dtype=next(self.parameters()).dtype) # fp16 compatibility

@@ -14,3 +14,4 @@ protobuf
 datasets
 accelerate
 python-multipart
+opencv-python
