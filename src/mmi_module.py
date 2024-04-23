@@ -35,7 +35,7 @@ import torch.nn.functional as F
 from transformers import BertModel, Wav2Vec2Model, WavLMModel, HubertModel, BertLayer
 from transformers.models.bert.modeling_bert import BertIntermediate, BertOutput, BertSelfOutput
 
-from utils import create_mask
+from src.utils import create_mask
 from src.config import LEARNING_RATE, WAV2VEC_MODEL, BATCH_SIZE, EPOCH, ACCUM_GRAD
 
 args = {
@@ -368,7 +368,7 @@ class MMI_Model(nn.Module):
         input_lengths = self.wav2vec2._get_feat_extract_output_lengths(audio_attention_mask.sum(-1)).type(torch.IntTensor)
         wav2vec2_attention_mask = create_mask(audio_output_wav2vec2.shape[0],audio_output_wav2vec2.shape[1],input_lengths)
 
-        wav2vec2_attention_mask = wav2vec2_attention_mask.cuda()
+        wav2vec2_attention_mask = wav2vec2_attention_mask.to(bert_output.device)
 
         #-----------------------------------------------------------------------------------------------------------#
 
